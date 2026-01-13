@@ -1,19 +1,8 @@
 import os
-import warnings
-
-# 抑制 urllib3 的 OpenSSL 警告（macOS 使用 LibreSSL 是正常的）
-# 这个警告不影响功能，只是版本兼容性提示
-# 需要在导入可能使用 urllib3 的库之前设置
-warnings.filterwarnings("ignore", message=".*urllib3.*", category=UserWarning)
-warnings.filterwarnings("ignore", message=".*OpenSSL.*", category=UserWarning)
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.prompts import PromptTemplate
-
-# 抑制 LangChain 的弃用警告
-# 注意：这是临时解决方案，建议未来迁移到新的 API
-from langchain_core._api.deprecation import LangChainDeprecationWarning
 
 from langchain.memory import ConversationBufferMemory
 from tools.math_tools import add
@@ -43,25 +32,32 @@ def create_tools():  # 创建工具列表
 
 
 def create_memory():  # 创建记忆模块
-    # 使用新的方式创建 memory，避免弃用警告
-    # 在新版本中，使用 return_messages=False 避免警告
     memory = ConversationBufferMemory(
-        memory_key="chat_history",
+        memory_key="chat_history",  # 在 prompt 中使用的变量名
         return_messages=False,  # 返回字符串格式，适合字符串模板
     )
     return memory
 
 
 def create_agent_executor(llm, tools, memory):  # 创建Agent执行器
-    prompt_template = """
-    你是一个友好的AI助手，可以使用工具来回答用户问题
-    用户的问题: {input}
-    行动: {tool_names}
-    思考过程: {agent_scratchpad}
-    工具: {tools}
-    记忆: {chat_history}
-    回答:
-    """
+    prompt_template = """你是一个友好的 AI 助手。你可以使用工具来回答问题。
+    你可以使用的工具：
+    {tools}
+
+    使用以下格式：
+    Question: 需要回答的问题
+    Thought: 你应该思考要做什么
+    Action: 要采取的行动，应该是 [{tool_names}] 中的一个
+    Action Input: 行动的输入
+    Observation: 行动的结果
+    ... (这个 Thought/Action/Action Input/Observation 可以重复 N 次)
+    Thought: 我现在知道最终答案了
+    Final Answer: 对原始问题的最终答案
+
+    {chat_history}
+
+    Question: {input}
+    Thought: {agent_scratchpad}"""
     prompt = PromptTemplate.from_template(prompt_template)  # 创建提示模板
 
     agent = create_react_agent(llm=llm, tools=tools, prompt=prompt)  # 创建Agent
